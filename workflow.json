@@ -1,0 +1,304 @@
+{
+  "name": "AI Tech News Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://hnrss.org/newest?points=5",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        -32
+      ],
+      "id": "0762a572-4ca8-441b-bd4f-c4604c22975b",
+      "name": "RSS Read",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "resource": "Default",
+        "operation": "Scrape A Url And Get Its Content",
+        "url": "={{ $json.link }}",
+        "formats": [
+          "markdown"
+        ],
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-firecrawl.fireCrawl",
+      "typeVersion": 1,
+      "position": [
+        656,
+        -32
+      ],
+      "id": "42f932b7-1512-4ddb-894a-9a6d1b728a96",
+      "name": "Scrape A Url And Get Its Content",
+      "credentials": {
+        "fireCrawlApi": {
+          "id": "",
+          "name": "FireCrawl account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "maxItems": 3
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -32
+      ],
+      "id": "579d5ab0-982d-4d92-9b6e-7febab55b1d3",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=標題：{{ $('Limit').all()[$itemIndex].json.title }}\n連結：{{ $('Limit').all()[$itemIndex].json.link }}\n內文：{{ ($json.data && $json.data.markdown || '').slice(0, 6000) }}",
+        "options": {
+          "systemMessage": "你是科技新聞編輯，替忙碌的工程師整理 Hacker News 文章。請用繁體中文，依下列格式輸出：\n\n### {中文標題}\n**Original:** {英文原標題}\n- 重點一\n- 重點二\n- 重點三\n**為什麼值得看：** 一句話說明對工程師的意義\n[閱讀原文]({連結})\n\n規則：\n1. 只能根據內文寫，不可編造數字、公司名或結論。\n2. 如果內文是空的或看不出主題，只輸出標題與連結，並註明「內文無法取得」。\n3. 每個重點不超過 40 字。"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        880,
+        -32
+      ],
+      "id": "2041144d-7c7c-44fc-a677-b46f3bbd2cb4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        752,
+        176
+      ],
+      "id": "c119e273-3ba7-4e72-867c-033a84c35a2c",
+      "name": "DeepSeek Chat Model",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "output"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        -32
+      ],
+      "id": "b8ea02a9-01a2-4651-8a8a-19007db14934",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "={{ $json.output.join('\\n\\n').replace(/\\n(\\*\\*為什麼值得看)/g, '\\n\\n$1').replace(/\\n(\\[閱讀原文\\])/g, '\\n\\n$1') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        -32
+      ],
+      "id": "9d446944-cb48-4e4f-9daa-3ee37b98fa6c",
+      "name": "Markdown"
+    },
+    {
+      "parameters": {
+        "fromEmail": "sender@example.com",
+        "toEmail": "you@example.com",
+        "subject": "=Tech News Digest | {{ $now.format('yyyy-MM-dd') }}",
+        "html": "={{ $json.data }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1696,
+        -16
+      ],
+      "id": "49dee5be-2a29-43e9-bf90-fb0685501b93",
+      "name": "Send an Email",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -240,
+        -32
+      ],
+      "id": "cc376d6c-81fd-4999-9e31-9da09fe0f705",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "dedupeValue": "={{ $json.link }}#v2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        208,
+        -32
+      ],
+      "id": "7532cc71-c4b4-4e51-8452-7251450607b9",
+      "name": "Remove Duplicates"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "RSS Read": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Scrape A Url And Get Its Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape A Url And Get Its Content": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown": {
+      "main": [
+        [
+          {
+            "node": "Send an Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "RSS Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": [],
+  "tags": []
+}
